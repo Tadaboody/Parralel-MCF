@@ -9,7 +9,7 @@ typedef struct index_t_container
     index_t data;
 } data_t;
 typedef void* generic_p;
-#define SIZE 10000
+#define SIZE 10000000
 index_t *prefix_sum(index_t *x, index_t n)
 {
     //prefix sum happens _in place_. make sure not to free the array twice
@@ -31,18 +31,15 @@ index_t *prefix_sum(index_t *x, index_t n)
     return x;
 }
 
-filter_ret_t filter(generic_p *array, generic_p *end,size_t jump, predicate p)
+filter_ret_t filter(generic_p *array, index_t length, predicate p)
 {
     index_t *bitmap, *bitsum;
     generic_p *filtered;
-    size_t length = (end - array) / jump;
-    size_t i;
-    generic_p *member;
     bitmap = malloc(sizeof(index_t) * length);
-    #pragma omp parralel for private(i,member)
-    for (member = array, i = 0; member < end; member += jump, i++)
+    #pragma omp parralel for
+    for(index_t i=0;i<length;i++)
     {
-        bitmap[i] = p(*member);
+        bitmap[i] = p(array[i]);
     }
     bitsum = prefix_sum(bitmap, length);
     index_t filtered_length = bitsum[length - 1];
@@ -100,19 +97,19 @@ void test_filter()
         a[i] = malloc(sizeof(data_t));
         a[i]->data = i + 1;
     }
-    filter_ret_t a_filtered = filter((generic_p *)a, (generic_p *)(a + SIZE), 1, even);
+    filter_ret_t a_filtered = filter((generic_p *)a, SIZE, even);
     data_t **a_filterd_array = a_filtered.filtered_array;
     index_t filtered_length = a_filtered.filtered_array_len;
     bool assert_filter = true;
-    // #pragma omp parallel for reduction(&& : assert_filter)
+    #pragma omp parallel for reduction(&& : assert_filter)
     for (index_t i = 0; i < filtered_length; i++)
     {
-        index_t expected = 2 * (i+1);
-        index_t actual = a_filterd_array[i]->data;
-        bool current_test = actual == expected;
+        data_t expected = {2 * (i+1)};
+        data_t *actual = a_filterd_array[i];
+        bool current_test = actual->data == expected.data;
         if (!current_test)
         {
-            printf("test %d failed. expected %ld, actual %ld\n", i, expected, actual);
+            printf("test %d failed. expected %d, actual %d\n", i, expected.data, actual->data);
         }
         assert_filter = assert_filter && current_test;
     }
@@ -124,6 +121,7 @@ void test_filter()
     }
     free(a);
 }
+
 // int main()
 // {
 //     test_psum();
