@@ -26,7 +26,9 @@ Copyright (c) 2003-2005 Andreas Loebel.
 
 
 #include "pbeampp.h"
-
+#include "pprefix.h"
+#include "omp.h"
+#include <stdlib.h>
 
 
 
@@ -42,6 +44,12 @@ int bea_is_dual_infeasible( arc, red_cost )
             || (red_cost > 0 && arc->ident == AT_UPPER) );
 }
 
+bool basket_sort_pred(generic_p arc_vp)
+{
+    arc_p arc = (arc_p)(arc_vp);
+    cost_t red_cost = arc->cost - arc->tail->potential + arc->head->potential;
+    return (arc->ident > BASIC) && bea_is_dual_infeasible(arc,red_cost);
+}
 
 
 
@@ -162,23 +170,28 @@ arc_t *primal_bea_mpp( m, arcs, stop_arcs, red_cost_of_bea )
 NEXT:
     /* price next group */
     arc = arcs + group_pos;
-    for( ; arc < stop_arcs; arc += nr_group )
+    size_t arc_array_len = (stop_arcs-arc)/nr_group;
+    long my_index;
+    arc_p *arc_array = malloc(arc_array_len*sizeof(arc_p));
+    // #pragma omp parallel for
+    for (arc = (arcs + group_pos), my_index = 0; arc < stop_arcs; my_index++, arc += nr_group)
     {
-        if( arc->ident > BASIC )
-        {
-            /* red_cost = bea_compute_red_cost( arc ); */
-            red_cost = arc->cost - arc->tail->potential + arc->head->potential;
-            if( bea_is_dual_infeasible( arc, red_cost ) )
-            {
-                basket_size++;
-                perm[basket_size]->a = arc;
-                perm[basket_size]->cost = red_cost;
-                perm[basket_size]->abs_cost = ABS(red_cost);
-            }
-        }
-        
+        arc_array[my_index] = arc;
     }
-
+    filter_ret_t filtered_arcs_tuple = filter((generic_p *)arc_array, arc_array_len, basket_sort_pred);
+    arc_p *filtered_arcs_array = (arc_p*) filtered_arcs_tuple.filtered_array;
+    #pragma omp parallel for private(my_index)
+    for(my_index =0; my_index<filtered_arcs_tuple.filtered_array_len;my_index++)
+            {
+        arc_p my_arc = filtered_arcs_array[my_index];
+        cost_t red_cost = my_arc->cost - my_arc->tail->potential + my_arc->head->potential;
+        perm[basket_size+my_index+1]->a = my_arc;
+        perm[basket_size+my_index+1]->cost = red_cost;
+        perm[basket_size+my_index+1]->abs_cost = ABS(red_cost);
+    }
+    basket_size = filtered_arcs_tuple.filtered_array_len;
+    // free(arc_array);
+    // free(filtered_arcs_array);
     if( ++group_pos == nr_group )
         group_pos = 0;
 
