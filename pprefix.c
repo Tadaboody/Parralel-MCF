@@ -17,14 +17,11 @@ typedef struct filter_ret_t
     index_t filtered_array_len;
 }filter_ret_t;
 
-index_t *prefix_sum(index_t *array, index_t n)
+index_t *prefix_sum(index_t *x, index_t n)
 {
-    index_t *x = malloc(sizeof(data_t) * n);
+    //prefix sum happens _in place_. make sure not to free the array twice
     index_t *t = malloc(sizeof(data_t) * n);
     index_t i,j;
-    #pragma omp parallel for private(i)
-    for (i = 0; i < n; i++)
-        x[i] = array[i];
     for (j = 0; j < log2(n); j++) 
     {
     #pragma omp parallel private(i) //TODO: implement better
@@ -70,7 +67,6 @@ filter_ret_t filter(generic_p *array, generic_p *end,size_t jump, predicate p)
         }
     }
     free(bitsum);
-    free(bitmap);
     filter_ret_t ret = {filtered, filtered_length};
     return ret;
 }
@@ -101,7 +97,6 @@ void test_psum()
     }
     printf("assert_psum=%s\n", assert_psum ? "True" : "False");
     free(a_psum);
-    free(a);
 }
 
 void test_filter()
