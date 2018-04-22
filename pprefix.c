@@ -3,20 +3,13 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-typedef long long index_t;
+#include "pprefix.h"
 typedef struct index_t_container
 {
     index_t data;
 } data_t;
 typedef void* generic_p;
-#define N 10000000
-typedef bool (*predicate)(generic_p);
-typedef struct filter_ret_t
-{
-    generic_p filtered_array;
-    index_t filtered_array_len;
-}filter_ret_t;
-
+#define SIZE 10000
 index_t *prefix_sum(index_t *x, index_t n)
 {
     //prefix sum happens _in place_. make sure not to free the array twice
@@ -80,12 +73,12 @@ bool even(generic_p a)
 void test_psum()
 {
     bool assert_psum = true;
-    index_t *a = malloc(sizeof(index_t) * N);
-    for (long i = 0; i < N; i++)
+    index_t *a = malloc(sizeof(index_t) * SIZE);
+    for (long i = 0; i < SIZE; i++)
         a[i] = i + 1;
-    index_t *a_psum = prefix_sum(a, N);
+    index_t *a_psum = prefix_sum(a, SIZE);
     #pragma omp parallel for reduction(&: assert_psum)
-    for (index_t i = 1; i <= N; i++)
+    for (index_t i = 1; i <= SIZE; i++)
     {
         index_t expected = (i * (i + 1)) / 2;
         bool current_test = (a_psum[i - 1] == expected);
@@ -101,13 +94,13 @@ void test_psum()
 
 void test_filter()
 {
-    data_t **a = malloc(sizeof(data_t *) * N);
-    for (index_t i = 0; i < N; i++)
+    data_t **a = malloc(sizeof(data_t *) * SIZE);
+    for (index_t i = 0; i < SIZE; i++)
     {
         a[i] = malloc(sizeof(data_t));
         a[i]->data = i + 1;
     }
-    filter_ret_t a_filtered = filter((generic_p *)a, (generic_p *)(a + N), 1, even);
+    filter_ret_t a_filtered = filter((generic_p *)a, (generic_p *)(a + SIZE), 1, even);
     data_t **a_filterd_array = a_filtered.filtered_array;
     index_t filtered_length = a_filtered.filtered_array_len;
     bool assert_filter = true;
@@ -125,14 +118,14 @@ void test_filter()
     }
     printf("assert_filter=%s\n", assert_filter ? "True" : "False");
     free(a_filterd_array);
-    for (index_t i = 0; i < N; i++)
+    for (index_t i = 0; i < SIZE; i++)
     {
         free(a[i]);
     }
     free(a);
 }
-int main()
-{
-    test_psum();
-    test_filter();
-}
+// int main()
+// {
+//     test_psum();
+//     test_filter();
+// }
