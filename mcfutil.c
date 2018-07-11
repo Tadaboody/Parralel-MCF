@@ -78,37 +78,66 @@ long refresh_potential( net )
 
     root->potential = (cost_t) -MAX_ART_COST;
     tmp = node = root->child;
-    while( node != root )
+//     for (node_p outer_node = root->child; outer_node; outer_node = outer_node->child)
+//     {
+//         for (node_p node = outer_node; node; node = node->sibling)
+//         {
+// #pragma omp task
+//             {
+//                 if (node->orientation == UP)
+//                     node->potential = node->basic_arc->cost + node->pred->potential;
+//                 else /* == DOWN */
+//                 {
+//                     node->potential = node->pred->potential - node->basic_arc->cost;
+// #pragma omp atomic
+//                     {
+//                         checksum++;
+//                     }
+//                 }
+//             }
+//         }
+//     }
+int counter=0;
+    #pragma omp parallel
     {
-        while( node )
+#pragma omp single nowait
         {
-            if( node->orientation == UP )
-                node->potential = node->basic_arc->cost + node->pred->potential;
-            else /* == DOWN */
+            while (node != root)
             {
-                node->potential = node->pred->potential - node->basic_arc->cost;
-                checksum++;
-            }
+                while (node)
+                {
+                    checksum += (1 - node->orientation);
+#pragma omp task united firstprivate(node)
+                    {
+                        if (node->orientation == UP)
+                            node->potential = node->basic_arc->cost + node->pred->potential;
+                        else /* == DOWN */
+                        {
+                            node->potential = node->pred->potential - node->basic_arc->cost;
+                        }
+                    }
 
-            tmp = node;
-            node = node->child;
-        }
-        
-        node = tmp;
+                    tmp = node;
+                    node = node->child;
+                }
 
-        while( node->pred )
-        {
-            tmp = node->sibling;
-            if( tmp )
-            {
                 node = tmp;
-                break;
+
+                while (node->pred)
+                {
+                    tmp = node->sibling;
+                    if (tmp)
+                    {
+                        node = tmp;
+                        break;
+                    }
+                    else
+                        node = node->pred;
+                }
             }
-            else
-                node = node->pred;
         }
     }
-    
+
     return checksum;
 }
 
